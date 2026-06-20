@@ -5,6 +5,11 @@ import { CheckCircle2, ChevronRight, Loader2, Sparkles, PlusCircle } from 'lucid
 import CountrySelect from './CountrySelect';
 import { INDUSTRIES, UNITS, DemandSignal } from '@/types';
 
+const isGibberish = (value: string, threshold: number): boolean => {
+  const words = value.split(/\s+/);
+  return words.some((word) => word.length > threshold);
+};
+
 export default function DemandForm() {
   // Form values
   const [product, setProduct] = useState('');
@@ -30,8 +35,15 @@ export default function DemandForm() {
     const newErrors = { ...errors };
 
     if (name === 'product') {
-      if (!value.trim()) {
+      const trimmed = value.trim();
+      if (!trimmed) {
         newErrors.product = 'Please specify the product your business sources.';
+      } else if (trimmed.length < 2) {
+        newErrors.product = 'Please enter a valid product name.';
+      } else if (trimmed.length > 100) {
+        newErrors.product = 'Product name must be under 100 characters.';
+      } else if (isGibberish(trimmed, 30)) {
+        newErrors.product = 'Please enter a valid product name, not random text.';
       } else {
         delete newErrors.product;
       }
@@ -66,8 +78,59 @@ export default function DemandForm() {
         newErrors.quantity = 'Please enter a quantity.';
       } else if (isNaN(num) || num <= 0) {
         newErrors.quantity = 'Quantity must be a positive number.';
+      } else if (num > 1000000) {
+        newErrors.quantity = 'Quantity seems unusually high. Please enter a realistic typical purchase volume.';
       } else {
         delete newErrors.quantity;
+      }
+    }
+
+    if (name === 'companyName') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        if (trimmed.length > 80) {
+          newErrors.companyName = 'Company name must be under 80 characters.';
+        } else if (isGibberish(trimmed, 25)) {
+          newErrors.companyName = 'Please enter a valid company name.';
+        } else {
+          delete newErrors.companyName;
+        }
+      } else {
+        delete newErrors.companyName;
+      }
+    }
+
+    if (name === 'contact') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
+        const digitsOnly = trimmed.replace(/[^0-9]/g, '');
+        const isPhone = /^[+\-\s0-9]+$/.test(trimmed) && digitsOnly.length >= 7 && digitsOnly.length <= 15;
+
+        if (trimmed.length > 100) {
+          newErrors.contact = 'Contact info must be under 100 characters.';
+        } else if (!isEmail && !isPhone) {
+          newErrors.contact = 'Please enter a valid email, phone number';
+        } else {
+          delete newErrors.contact;
+        }
+      } else {
+        delete newErrors.contact;
+      }
+    }
+
+    if (name === 'additionalRequirements') {
+      const trimmed = value.trim();
+      if (trimmed) {
+        if (trimmed.length > 500) {
+          newErrors.additionalRequirements = 'Market context must be under 500 characters.';
+        } else if (isGibberish(trimmed, 40)) {
+          newErrors.additionalRequirements = 'Please avoid random text — share real details about your sourcing needs.';
+        } else {
+          delete newErrors.additionalRequirements;
+        }
+      } else {
+        delete newErrors.additionalRequirements;
       }
     }
 
@@ -80,9 +143,20 @@ export default function DemandForm() {
 
     // Final validation
     const tempErrors: { [key: string]: string } = {};
-    if (!product.trim()) tempErrors.product = 'Please specify the product your business sources.';
     
-    // Industry validation
+    // 1. Product Needed
+    const trimmedProduct = product.trim();
+    if (!trimmedProduct) {
+      tempErrors.product = 'Please specify the product your business sources.';
+    } else if (trimmedProduct.length < 2) {
+      tempErrors.product = 'Please enter a valid product name.';
+    } else if (trimmedProduct.length > 100) {
+      tempErrors.product = 'Product name must be under 100 characters.';
+    } else if (isGibberish(trimmedProduct, 30)) {
+      tempErrors.product = 'Please enter a valid product name, not random text.';
+    }
+    
+    // 2. Industry
     if (!industry) {
       tempErrors.industry = 'Please select your industry.';
     } else if (industry === 'Other') {
@@ -98,11 +172,48 @@ export default function DemandForm() {
       }
     }
 
+    // 3. Typical Purchase Volume
     const numQty = Number(quantity);
     if (!quantity) {
       tempErrors.quantity = 'Please enter a quantity.';
     } else if (isNaN(numQty) || numQty <= 0) {
       tempErrors.quantity = 'Quantity must be a positive number.';
+    } else if (numQty > 1000000) {
+      tempErrors.quantity = 'Quantity seems unusually high. Please enter a realistic typical purchase volume.';
+    }
+
+    // 4. Company Name (optional)
+    const trimmedCompany = companyName.trim();
+    if (trimmedCompany) {
+      if (trimmedCompany.length > 80) {
+        tempErrors.companyName = 'Company name must be under 80 characters.';
+      } else if (isGibberish(trimmedCompany, 25)) {
+        tempErrors.companyName = 'Please enter a valid company name.';
+      }
+    }
+
+    // 5. Contact (optional)
+    const trimmedContact = contact.trim();
+    if (trimmedContact) {
+      const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedContact);
+      const digitsOnly = trimmedContact.replace(/[^0-9]/g, '');
+      const isPhone = /^[+\-\s0-9]+$/.test(trimmedContact) && digitsOnly.length >= 7 && digitsOnly.length <= 15;
+
+      if (trimmedContact.length > 100) {
+        tempErrors.contact = 'Contact info must be under 100 characters.';
+      } else if (!isEmail && !isPhone) {
+        tempErrors.contact = 'Please enter a valid email, phone number';
+      }
+    }
+
+    // 6. Additional Market Context (optional)
+    const trimmedAddReq = additionalRequirements.trim();
+    if (trimmedAddReq) {
+      if (trimmedAddReq.length > 500) {
+        tempErrors.additionalRequirements = 'Market context must be under 500 characters.';
+      } else if (isGibberish(trimmedAddReq, 40)) {
+        tempErrors.additionalRequirements = 'Please avoid random text — share real details about your sourcing needs.';
+      }
     }
 
     if (Object.keys(tempErrors).length > 0) {
@@ -451,10 +562,21 @@ export default function DemandForm() {
                   type="text"
                   id="companyName"
                   value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
+                  onChange={(e) => {
+                    setCompanyName(e.target.value);
+                    validateField('companyName', e.target.value);
+                  }}
+                  onBlur={(e) => validateField('companyName', e.target.value)}
                   placeholder="Your company name"
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#e5e7eb] bg-white text-[#0f172a] placeholder-[#94a3b8] text-sm outline-none focus:border-[#16a34a]/50 hover:border-slate-300 focus:ring-1 focus:ring-[#16a34a] transition-all"
+                  className={`w-full px-4 py-2.5 rounded-xl border bg-white text-[#0f172a] placeholder-[#94a3b8] text-sm outline-none focus:border-[#16a34a]/50 hover:border-slate-300 focus:ring-1 focus:ring-[#16a34a] transition-all ${
+                    errors.companyName
+                      ? 'border-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.08)]'
+                      : 'border-[#e5e7eb]'
+                  }`}
                 />
+                {errors.companyName && (
+                  <p className="text-xs text-rose-600 mt-1.5 ml-1">{errors.companyName}</p>
+                )}
               </div>
 
               {/* Country */}
@@ -482,10 +604,21 @@ export default function DemandForm() {
                 type="text"
                 id="contact"
                 value={contact}
-                onChange={(e) => setContact(e.target.value)}
+                onChange={(e) => {
+                  setContact(e.target.value);
+                  validateField('contact', e.target.value);
+                }}
+                onBlur={(e) => validateField('contact', e.target.value)}
                 placeholder="Email address (optional)"
-                className="w-full px-4 py-2.5 rounded-xl border border-[#e5e7eb] bg-white text-[#0f172a] placeholder-[#94a3b8] text-sm outline-none focus:border-[#16a34a]/50 hover:border-slate-300 focus:ring-1 focus:ring-[#16a34a] transition-all"
+                className={`w-full px-4 py-2.5 rounded-xl border border-[#e5e7eb] bg-white text-[#0f172a] placeholder-[#94a3b8] text-sm outline-none focus:border-[#16a34a]/50 hover:border-slate-300 focus:ring-1 focus:ring-[#16a34a] transition-all ${
+                  errors.contact
+                    ? 'border-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.08)]'
+                    : 'border-[#e5e7eb]'
+                }`}
               />
+              {errors.contact && (
+                <p className="text-xs text-rose-600 mt-1.5 ml-1">{errors.contact}</p>
+              )}
             </div>
 
             {/* Additional Market Context */}
@@ -500,10 +633,28 @@ export default function DemandForm() {
                 id="additionalRequirements"
                 rows={3}
                 value={additionalRequirements}
-                onChange={(e) => setAdditionalRequirements(e.target.value)}
+                onChange={(e) => {
+                  setAdditionalRequirements(e.target.value);
+                  validateField('additionalRequirements', e.target.value);
+                }}
+                onBlur={(e) => validateField('additionalRequirements', e.target.value)}
                 placeholder="Share any additional details about the products your business typically sources — preferred standards, certifications, grade, or form (e.g. Organic, Kosher, GMP, Powder, Raw)"
-                className="w-full px-4 py-2.5 rounded-xl border border-[#e5e7eb] bg-white text-[#0f172a] placeholder-[#94a3b8] text-sm outline-none focus:border-[#16a34a]/50 hover:border-slate-300 focus:ring-1 focus:ring-[#16a34a] transition-all resize-none"
+                className={`w-full px-4 py-2.5 rounded-xl border bg-white text-[#0f172a] placeholder-[#94a3b8] text-sm outline-none focus:border-[#16a34a]/50 hover:border-slate-300 focus:ring-1 focus:ring-[#16a34a] transition-all resize-none ${
+                  errors.additionalRequirements
+                    ? 'border-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.08)]'
+                    : 'border-[#e5e7eb]'
+                }`}
               />
+              <div className="flex justify-between items-center mt-1">
+                {errors.additionalRequirements ? (
+                  <p className="text-xs text-rose-600 ml-1">{errors.additionalRequirements}</p>
+                ) : (
+                  <span />
+                )}
+                <span className="text-[10px] text-slate-400 font-medium mr-1 select-none">
+                  {additionalRequirements.length}/500
+                </span>
+              </div>
             </div>
           </div>
         </div>
