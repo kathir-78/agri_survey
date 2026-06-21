@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { INDUSTRIES } from '@/types';
 
+export const runtime = 'nodejs';
+export const preferredRegion = 'bom1';
+
 // ─── Helpers ────────────────────────────────────────────
 
 // Helper to check admin authorization
@@ -105,24 +108,21 @@ export async function POST(request: NextRequest) {
     }
 
     // ═══ STEP 3 — Rate limit check (Supabase-backed) ═══
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: rateLimitAllowed, error: rateLimitError } = 
+      await supabase.rpc('check_and_log_rate_limit', {
+        p_ip_address: ip,
+        p_window_minutes: 10,
+        p_max_requests: 5
+      });
 
-    const { count: rateLimitCount, error: rateLimitError } = await supabase
-      .from('submission_log')
-      .select('*', { count: 'exact', head: true })
-      .eq('ip_address', ip)
-      .gte('created_at', tenMinutesAgo);
-
-    const currentCount = rateLimitCount ?? 0;
-    console.log('[demand-signals] Rate limit check:', { ip, count: currentCount });
+    console.log('[demand-signals] Rate limit check:', { ip, allowed: rateLimitAllowed });
 
     if (rateLimitError) {
-      console.error('[demand-signals] Rate limit query error:', rateLimitError.message);
-      // If the rate limit query fails, allow the submission through
-      // rather than blocking legitimate users due to a DB hiccup.
+      console.error('[demand-signals] Rate limit RPC error:', rateLimitError.message);
+      // Fail open on DB errors, same as before
     }
 
-    if (!rateLimitError && currentCount >= 5) {
+    if (!rateLimitError && rateLimitAllowed === false) {
       return NextResponse.json(
         { error: 'Too many submissions. Please try again later.' },
         { status: 429 }
@@ -271,7 +271,7 @@ export async function POST(request: NextRequest) {
     const submissionRegion = request.headers.get('x-vercel-ip-country-region') || null;
     const submissionCity = request.headers.get('x-vercel-ip-city') || null;
 
-    // ═══ STEP 7 — Insert into demand_signals ═══
+    // ═══ STEP 7 — Insert demand signal ═══
     const { data: insertedData, error: insertError } = await supabase
       .from('demand_signals')
       .insert([
@@ -297,16 +297,6 @@ export async function POST(request: NextRequest) {
         { success: false, error: insertError.message },
         { status: 500 }
       );
-    }
-
-    // ═══ STEP 8 — Log to submission_log (after successful insert) ═══
-    const { error: logError } = await supabase
-      .from('submission_log')
-      .insert([{ ip_address: ip }]);
-
-    if (logError) {
-      console.error('[demand-signals] submission_log insert error:', logError.message);
-      // Non-fatal: the demand signal was already saved successfully.
     }
 
     // ═══ STEP 9 — Return filtered success response ═══
