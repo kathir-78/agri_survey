@@ -22,6 +22,9 @@ export default function DemandForm() {
   const [contact, setContact] = useState('');
   const [additionalRequirements, setAdditionalRequirements] = useState('');
 
+  // Honeypot field — invisible to real users, bots auto-fill it
+  const [website, setWebsite] = useState('');
+
   // UI States
   const [showOptional, setShowOptional] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -238,6 +241,7 @@ export default function DemandForm() {
           country: country ? country.trim() : null,
           contact: contact ? contact.trim() : null,
           additional_requirements: additionalRequirements ? additionalRequirements.trim() : null,
+          website,
         }),
       });
 
@@ -265,6 +269,7 @@ export default function DemandForm() {
     setCountry('');
     setContact('');
     setAdditionalRequirements('');
+    setWebsite('');
     setShowOptional(false);
     setSuccessData(null);
     setErrors({});
@@ -338,6 +343,19 @@ export default function DemandForm() {
       <div className="h-1.5 bg-[#16a34a] w-full" />
 
       <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
+          {/* Honeypot field — hidden from real users, bots will auto-fill */}
+          <div style={{ display: 'none' }} aria-hidden="true">
+            <label htmlFor="website">Website</label>
+            <input
+              type="text"
+              id="website"
+              name="website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
         <div>
           <h2 className="text-xl font-bold text-[#0f172a] flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#16a34a]" />
